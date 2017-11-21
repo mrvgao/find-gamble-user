@@ -13,14 +13,16 @@ BatchedInput = namedtuple('BatchedInput', ['train_x', 'train_y', 'initializer'])
 
 
 def get_train_characters():
-    characters = set()
+    characters = []
     line_num = 0
-    for line in open(file_name, encoding='utf-8'):
+    for ii, line in open(file_name, encoding='utf-8'):
+        if ii == 0: continue
+
         char = line.split('\t')[0]
         line_num += 1
-        characters.add(char)
+        characters.append(char)
 
-    return sorted(list(characters))
+    return characters
 
 
 all_characters = get_train_characters()

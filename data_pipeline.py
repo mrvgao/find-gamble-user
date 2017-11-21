@@ -5,41 +5,39 @@ import tensorflow as tf
 from collections import namedtuple
 
 
-file_name = 'database/train_corpus.txt'
+file_name = 'database/train_corpus.tsv'
 
-BATCH_SIZE = 32
-VOCAB_SIZE = 5822
-CATEGORY_SIZE = 2
+VOCAB_SIZE = 6859
 
 BatchedInput = namedtuple('BatchedInput', ['train_x', 'train_y', 'initializer'])
 
 
-def get_train_corps_dict():
-    corps_dict = {}
+def get_train_characters():
+    characters = set()
     line_num = 0
     for line in open(file_name, encoding='utf-8'):
         char = line.split('\t')[0]
         line_num += 1
-        if char not in corps_dict: corps_dict[char] = len(corps_dict)
+        characters.add(char)
 
-    return corps_dict, line_num
-
-
-corpus_dict, train_file_line_num = get_train_corps_dict()
+    return sorted(list(characters))
 
 
-def one_hot(string):
-    categories = [0, 0]
-    categories[int((string[1]))] = 1
+all_characters = get_train_characters()
+
+
+def get_encoding(string):
+    probability = float(string[1])
     char = string[0]
-    return int(corpus_dict[char.decode('utf-8')]), categories
+    global all_characters
+    return all_characters.index(char.decode('utf-8')), probability
 
 
 def get_train_x_y(batch_size=128):
     dataset = tf.data.TextLineDataset(filenames=[file_name], buffer_size=10)
     dataset = dataset.map(lambda string: tf.string_split([string], delimiter='\t').values)
-    dataset = dataset.map(lambda string: tf.py_func(one_hot, [string], [tf.int64, tf.int64]))
-    dataset = dataset.shuffle(buffer_size=1000)
+    dataset = dataset.map(lambda string: tf.py_func(get_encoding, [string], [tf.int64, tf.float64]))
+    dataset = dataset.shuffle(buffer_size=5000)
     dataset = dataset.batch(batch_size)
     iterator = dataset.make_initializable_iterator()
     train_x, train_y = iterator.get_next()
@@ -63,5 +61,6 @@ if __name__ == '__main__':
         sess.run(initializer)
         x, y = sess.run([src_train_x, src_train_y])
         print(x)
+        print(y)
         print(x[0].shape)
 

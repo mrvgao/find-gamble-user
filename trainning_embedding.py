@@ -13,7 +13,14 @@ from data_pipeline import get_train_x_y
 import datetime
 
 
-vocab_size = 5822
+vocab_size = -1
+
+with open('database/vocab_size.txt') as f:
+    vocab_size = int(next(f).split(':')[1])
+
+assert vocab_size > 0
+print('vocab size is {}'.format(vocab_size))
+
 
 FLAGS = tf.flags.FLAGS
 tf.flags.DEFINE_string('mark', "", 'summary mark')
@@ -22,8 +29,9 @@ tf.flags.DEFINE_string('mark', "", 'summary mark')
 class GambleCharModel:
     def __init__(self, iterator):
         self.iterator = iterator
-        self.embedding_size = 5
+        self.embedding_size = 10
         self.learning_rate = 1e-3
+        self.regularization = 1e-3
 
         self.__build_layers()
         self.loss, self.op = self.__build_model()
@@ -31,27 +39,33 @@ class GambleCharModel:
     def __build_layers(self):
         with tf.variable_scope('embedding'):
             self.embedding = tf.get_variable(
-                'embedding', [vocab_size, self.embedding_size], dtype=tf.float64
+                'embedding', [vocab_size, self.embedding_size], dtype=tf.float32
             )
 
         with tf.variable_scope('hidden_layer'):
             self.hidden = tf.get_variable(
-                'hidden', [self.embedding_size, 2], initializer=tf.random_normal_initializer, dtype=tf.float64
+                'hidden', [self.embedding_size, 1], initializer=tf.random_normal_initializer, dtype=tf.float32
             )
 
             self.b = tf.get_variable(
-                'hidden_bias', (), initializer=tf.zeros_initializer, dtype=tf.float64
+                'hidden_bias', (), initializer=tf.zeros_initializer, dtype=tf.float32
             )
 
     def __build_model(self):
         input_x = self.iterator.train_x
         self.input_embedding = tf.nn.embedding_lookup(self.embedding, input_x)
-        predict = tf.matmul(self.input_embedding, self.hidden) + self.b
-        # output size == (None, 2)
+        predict = tf.sigmoid(tf.matmul(self.input_embedding, self.hidden) + self.b)
+        # predict \in [0, 1]
 
         input_y = self.iterator.train_y
-        loss = tf.losses.softmax_cross_entropy(onehot_labels=input_y, logits=predict)
-        loss += tf.nn.l2_loss(self.embedding)
+        loss = tf.losses.mean_squared_error(input_y, predict)
+        # loss = tf.losses.absolute_difference(input_y, predict)
+
+        tf.summary.scalar('predication_loss', loss)
+
+        loss += self.regularization * sum([tf.nn.l2_loss(self.embedding),
+                                           tf.nn.l2_loss(self.hidden),
+                                           tf.nn.l2_loss(self.b)])
 
         starter_learning_rate = self.learning_rate
 
@@ -62,7 +76,8 @@ class GambleCharModel:
         tf.summary.scalar('global_step', self.global_step)
         tf.summary.scalar('loss', loss)
 
-        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss=loss)
+        optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)\
+            .minimize(loss=loss, global_step=self.global_step)
 
         self.summary = tf.summary.merge_all()
 
@@ -80,7 +95,8 @@ def main(_):
     now = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S')
     summary_writer = tf.summary.FileWriter('tf-log/run-{}-{}'.format(now, FLAGS.mark))
 
-    max_epoch = 100
+    max_epoch = 10000
+    mini_loss = 1e-5
 
     session.run(iterator.initializer)
     session.run(tf.global_variables_initializer())
@@ -99,12 +115,15 @@ def main(_):
                 total_step += 1
 
                 if total_step % 10 == 0:
-                    print('loss = {}'.format(loss))
+                    print('epoch: {} loss = {}'.format(epoch, loss))
 
-                if global_step % 10 == 0: summary_writer.flush()
+                if total_step % 10 == 0: summary_writer.flush()
 
-                if global_step % 1000 == 0:
-                    saver.save(session, 'models/{}-{}-with-loss-{}'.format(FLAGS.mark, now, loss))
+                if total_step % 1000 == 0:
+                    saver.save(session, 'models/{}-{}-with-loss-{}.ckpt'.format(FLAGS.mark, now, loss), global_step=global_step)
+
+                if loss <= mini_loss:
+                    saver.save(session, 'models/last-{}-{}-with-loss-{}.ckpt'.format(FLAGS.mark, now, loss), global_step=global_step)
 
             except tf.errors.OutOfRangeError:
                 epoch += 1

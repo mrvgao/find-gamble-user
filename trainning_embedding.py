@@ -171,6 +171,8 @@ def main(_):
         train(session)
     elif FLAGS.mode == 'inference':
         inference(session)
+    else:
+        raise TypeError('invalid mode type, must be <train, inference>')
 
 
 if __name__ == '__main__':

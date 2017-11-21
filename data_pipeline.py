@@ -15,7 +15,7 @@ BatchedInput = namedtuple('BatchedInput', ['train_x', 'train_y', 'initializer'])
 def get_train_characters():
     characters = []
     line_num = 0
-    for ii, line in open(file_name, encoding='utf-8'):
+    for ii, line in enumerate(open(file_name, encoding='utf-8')):
         if ii == 0: continue
 
         char = line.split('\t')[0]
@@ -36,7 +36,7 @@ def get_encoding(string):
 
 
 def get_train_x_y(batch_size=128):
-    dataset = tf.data.TextLineDataset(filenames=[file_name], buffer_size=10)
+    dataset = tf.data.TextLineDataset(filenames=[file_name], buffer_size=10).skip(1)
     dataset = dataset.map(lambda string: tf.string_split([string], delimiter='\t').values)
     dataset = dataset.map(lambda string: tf.py_func(get_encoding, [string], [tf.int64, tf.float64]))
     dataset = dataset.shuffle(buffer_size=5000)

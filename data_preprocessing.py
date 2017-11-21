@@ -54,6 +54,7 @@ for c in not_gamble_chars:
     if c not in gamble_time_counter:
         gamble_time_map[c] = 0
 
+file.write('{}\t{}\n'.format('Char', 'Probability'))
 for k, v in gamble_time_map.items():
     file.write('{}\t{}\n'.format(k, v))
 

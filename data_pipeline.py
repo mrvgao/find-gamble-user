@@ -35,6 +35,11 @@ def get_encoding(string):
     return all_characters.index(char.decode('utf-8')), probability
 
 
+def convert_word_to_indices(words):
+    global all_characters
+    return [all_characters.index(c) for c in words]
+
+
 def get_train_x_y(batch_size=128):
     dataset = tf.data.TextLineDataset(filenames=[file_name], buffer_size=10).skip(1)
     dataset = dataset.map(lambda string: tf.string_split([string], delimiter='\t').values)
